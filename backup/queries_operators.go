@@ -58,7 +58,11 @@ func (o Operator) FQN() string {
 
 func GetOperators(connectionPool *dbconn.DBConn) []Operator {
 	results := make([]Operator, 0)
-	version4query := fmt.Sprintf(`
+	canmerge, filterClause := "false", ""
+	if !connectionPool.Version.Before("5") {
+		canmerge, filterClause = "oprcanmerge", ExtensionFilterClause("o")
+	}
+	query := fmt.Sprintf(`
 SELECT
 	o.oid AS oid,
 	quote_ident(n.nspname) AS schema,
@@ -70,36 +74,14 @@ SELECT
 	oprnegate::regoper AS negatorop,
 	oprrest AS restrictfunction,
 	oprjoin AS joinfunction,
-	oprcanhash AS canhash
-FROM pg_operator o
-JOIN pg_namespace n on n.oid = o.oprnamespace
-WHERE %s AND oprcode != 0`, SchemaFilterClause("n"))
-
-	masterQuery := fmt.Sprintf(`
-SELECT
-	o.oid AS oid,
-	quote_ident(n.nspname) AS schema,
-	oprname AS name,
-	oprcode::regproc AS procedure,
-	oprleft::regtype AS leftargtype,
-	oprright::regtype AS rightargtype,
-	oprcom::regoper AS commutatorop,
-	oprnegate::regoper AS negatorop,
-	oprrest AS restrictfunction,
-	oprjoin AS joinfunction,
-	oprcanmerge AS canmerge,
-	oprcanhash AS canhash
+	oprcanhash AS canhash,
+	%s AS canmerge
 FROM pg_operator o
 JOIN pg_namespace n on n.oid = o.oprnamespace
 WHERE %s AND oprcode != 0
-AND %s`, SchemaFilterClause("n"), ExtensionFilterClause("o"))
+AND %s`, SchemaFilterClause("n"), canmerge, filterClause)
 
-	var err error
-	if connectionPool.Version.Before("5") {
-		err = connectionPool.Select(&results, version4query)
-	} else {
-		err = connectionPool.Select(&results, masterQuery)
-	}
+	err := connectionPool.Select(&results, query)
 	gplog.FatalOnError(err)
 	return results
 }
@@ -195,28 +177,23 @@ func GetOperatorClasses(connectionPool *dbconn.DBConn) []OperatorClass {
 	 * PrintCreateOperatorClassStatement to not print FAMILY if the class and
 	 * family have the same schema and name will work for both versions.
 	 */
-	version4query := fmt.Sprintf(`
+	familyschema := "''"
+	familyname := "''"
+	joinclause := ""
+	filterClause := ""
+	if !connectionPool.Version.Before("5") {
+		familyschema = "quote_ident(fam_ns.nspname)"
+		familyname = "quote_ident(opfname)"
+		joinclause = "JOIN pg_catalog.pg_namespace fam_ns ON fam_ns.oid = opfnamespace"
+		filterClause = ExtensionFilterClause("c")
+	}
+	query := fmt.Sprintf(`
 SELECT
 	c.oid AS oid,
 	quote_ident(cls_ns.nspname) AS schema,
 	quote_ident(opcname) AS name,
-	'' AS familyschema,
-	'' AS familyname,
-	(SELECT amname FROM pg_catalog.pg_am WHERE oid = opcamid) AS indexmethod,
-	opcintype::pg_catalog.regtype AS type,
-	opcdefault AS default,
-	opckeytype::pg_catalog.regtype AS storagetype
-FROM pg_catalog.pg_opclass c
-JOIN pg_catalog.pg_namespace cls_ns ON cls_ns.oid = opcnamespace
-WHERE %s`, SchemaFilterClause("cls_ns"))
-
-	masterQuery := fmt.Sprintf(`
-SELECT
-	c.oid AS oid,
-	quote_ident(cls_ns.nspname) AS schema,
-	quote_ident(opcname) AS name,
-	quote_ident(fam_ns.nspname) AS familyschema,
-	quote_ident(opfname) AS familyname,
+	%s AS familyschema,
+	%s AS familyname,
 	(SELECT amname FROM pg_catalog.pg_am WHERE oid = opcmethod) AS indexmethod,
 	opcintype::pg_catalog.regtype AS type,
 	opcdefault AS default,
@@ -224,16 +201,11 @@ SELECT
 FROM pg_catalog.pg_opclass c
 LEFT JOIN pg_catalog.pg_opfamily f ON f.oid = opcfamily
 JOIN pg_catalog.pg_namespace cls_ns ON cls_ns.oid = opcnamespace
-JOIN pg_catalog.pg_namespace fam_ns ON fam_ns.oid = opfnamespace
+%s
 WHERE %s
-AND %s`, SchemaFilterClause("cls_ns"), ExtensionFilterClause("c"))
+AND %s`, familyschema, familyname, joinclause, SchemaFilterClause("cls_ns"), filterClause)
 
-	var err error
-	if connectionPool.Version.Before("5") {
-		err = connectionPool.Select(&results, version4query)
-	} else {
-		err = connectionPool.Select(&results, masterQuery)
-	}
+	err := connectionPool.Select(&results, query)
 	gplog.FatalOnError(err)
 
 	operators := GetOperatorClassOperators(connectionPool)

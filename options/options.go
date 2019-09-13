@@ -114,7 +114,7 @@ type FqnStruct struct {
 	TableName  string
 }
 
-const QuoteIdent = `SELECT quote_ident('%s') AS schemaname, quote_ident('%s') AS tablename`
+const QuoteIdent = `SELECT quote_ident('%s')||'.'||quote_ident('%s') AS tablename`
 
 func QuoteTableNames(conn *dbconn.DBConn, tableNames []string) ([]string, error) {
 	if len(tableNames) == 0 {
@@ -127,14 +127,11 @@ func QuoteTableNames(conn *dbconn.DBConn, tableNames []string) ([]string, error)
 	result := make([]string, 0)
 
 	for _, fqn := range fqnSlice {
-		queryResultTable := make([]FqnStruct, 0)
 		query := fmt.Sprintf(QuoteIdent, fqn.SchemaName, fqn.TableName)
-		err := conn.Select(&queryResultTable, query)
+		err := conn.Select(&result, query)
 		if err != nil {
 			return nil, err
 		}
-		quoted := queryResultTable[0].SchemaName + "." + queryResultTable[0].TableName
-		result = append(result, quoted)
 	}
 
 	return result, nil
@@ -229,7 +226,7 @@ func (o *Options) ExpandIncludesForPartitions(conn *dbconn.DBConn, flags *pflag.
 }
 
 func (o Options) getUserTableRelationsWithIncludeFiltering(connectionPool *dbconn.DBConn, includedRelationsQuoted []string) ([]FqnStruct, error) {
-	includeOids, err := getOidsFromRelationList(connectionPool, includedRelationsQuoted)
+	includeOids, err := GetOidsFromRelationList(connectionPool, includedRelationsQuoted)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +302,7 @@ ORDER BY c.oid;`, o.schemaFilterClause("n"), oidStr, oidStr, oidStr, childPartit
 	return results, err
 }
 
-func getOidsFromRelationList(connectionPool *dbconn.DBConn, quotedRelationNames []string) ([]string, error) {
+func GetOidsFromRelationList(connectionPool *dbconn.DBConn, quotedRelationNames []string) ([]string, error) {
 	relList := utils.SliceToQuotedString(quotedRelationNames)
 	query := fmt.Sprintf(`
 SELECT

@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/greenplum-db/gpbackup/options"
-
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
+	"github.com/greenplum-db/gpbackup/options"
 	"github.com/greenplum-db/gpbackup/utils"
 )
 
@@ -22,7 +21,7 @@ func relationAndSchemaFilterClause() string {
 	}
 	filterRelationClause = SchemaFilterClause("n")
 	if len(MustGetFlagStringSlice(utils.EXCLUDE_RELATION)) > 0 {
-		excludeOids := GetOidsFromRelationList(connectionPool, MustGetFlagStringSlice(utils.EXCLUDE_RELATION))
+		excludeOids, _ := options.GetOidsFromRelationList(connectionPool, MustGetFlagStringSlice(utils.EXCLUDE_RELATION))
 		if len(excludeOids) > 0 {
 			filterRelationClause += fmt.Sprintf("\nAND c.oid NOT IN (%s)", strings.Join(excludeOids, ", "))
 		}
@@ -31,21 +30,10 @@ func relationAndSchemaFilterClause() string {
 		quotedIncludeRelations, err := options.QuoteTableNames(connectionPool, MustGetFlagStringArray(utils.INCLUDE_RELATION))
 		gplog.FatalOnError(err)
 
-		includeOids := GetOidsFromRelationList(connectionPool, quotedIncludeRelations)
+		includeOids, _ := options.GetOidsFromRelationList(connectionPool, quotedIncludeRelations)
 		filterRelationClause += fmt.Sprintf("\nAND c.oid IN (%s)", strings.Join(includeOids, ", "))
 	}
 	return filterRelationClause
-}
-
-func GetOidsFromRelationList(connectionPool *dbconn.DBConn, quotedIncludeRelations []string) []string {
-	relList := utils.SliceToQuotedString(quotedIncludeRelations)
-	query := fmt.Sprintf(`
-SELECT
-	c.oid AS string
-FROM pg_class c
-JOIN pg_namespace n ON c.relnamespace = n.oid
-WHERE quote_ident(n.nspname) || '.' || quote_ident(c.relname) IN (%s)`, relList)
-	return dbconn.MustSelectStringSlice(connectionPool, query)
 }
 
 func GetIncludedUserTableRelations(connectionPool *dbconn.DBConn, includedRelationsQuoted []string) []Relation {
@@ -111,7 +99,7 @@ ORDER BY c.oid;`, relationAndSchemaFilterClause(), childPartitionFilter, Extensi
 }
 
 func GetUserTableRelationsWithIncludeFiltering(connectionPool *dbconn.DBConn, includedRelationsQuoted []string) []Relation {
-	includeOids := GetOidsFromRelationList(connectionPool, includedRelationsQuoted)
+	includeOids, _ := options.GetOidsFromRelationList(connectionPool, includedRelationsQuoted)
 
 	oidStr := strings.Join(includeOids, ", ")
 
