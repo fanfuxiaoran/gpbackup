@@ -5,10 +5,13 @@ set -ex
 export GOPATH=$(pwd)/go
 export PATH=$PATH:${GOPATH}/bin
 
-tar -zxf gpbackup-dependencies/dependencies.tar.gz -C ${GOPATH}/src/github.com
+# If you're working inside $GOPATH/src, go modules are disabled by default and can be enabled by setting GO111MODULE=on
+export GO111MODULE=on
+# tar -zxf gpbackup-dependencies/dependencies.tar.gz -C $GOPATH/src/github.com
 
 # Build gpbackup
 pushd ${GOPATH}/src/github.com/greenplum-db/gpbackup
+  go mod vendor
   make depend build unit
   version=$(git describe --tags | perl -pe 's/(.*)-([0-9]*)-(g[0-9a-f]*)/\1+dev.\2.\3/')
 popd
@@ -49,7 +52,7 @@ fi
 
 # tar updated dependencies
 pushd ${GOPATH}/src/github.com
-  tar cfz dependencies.tar.gz greenplum-db/gpbackup/vendor pivotal/gp-backup-manager/vendor
+  tar cfz dependencies.tar.gz greenplum-db/gpbackup/vendor
 popd
 cp ${GOPATH}/src/github.com/dependencies.tar.gz output_deps/
 
