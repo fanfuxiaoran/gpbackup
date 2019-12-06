@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/greenplum-db/gp-golang-libpq/pq"
 	"github.com/greenplum-db/gpbackup/utils"
-	"github.com/lib/pq"
 )
 
 func PrintStatisticsStatements(statisticsFile *utils.FileWithByteCount, toc *utils.TOC, tables []Table, attStats map[uint32][]AttributeStatistic, tupleStats map[uint32]TupleStatistic) {

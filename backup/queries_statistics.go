@@ -10,8 +10,8 @@ import (
 
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
+	"github.com/greenplum-db/gp-golang-libpq/pq"
 	"github.com/greenplum-db/gpbackup/utils"
-	"github.com/lib/pq"
 )
 
 type AttributeStatistic struct {
@@ -99,7 +99,7 @@ func GetAttributeStatistics(connectionPool *dbconn.DBConn, tables []Table) map[u
 	WHERE %s
 		AND quote_ident(n.nspname) || '.' || quote_ident(c.relname) IN (%s)
 	ORDER BY n.nspname, c.relname, a.attnum`,
-	inheritClause, statSlotClause, SchemaFilterClause("n"), utils.SliceToQuotedString(tablenames))
+		inheritClause, statSlotClause, SchemaFilterClause("n"), utils.SliceToQuotedString(tablenames))
 
 	results := make([]AttributeStatistic, 0)
 	err := connectionPool.Select(&results, query)
@@ -135,7 +135,7 @@ func GetTupleStatistics(connectionPool *dbconn.DBConn, tables []Table) map[uint3
 	WHERE %s
 		AND quote_ident(n.nspname) || '.' || quote_ident(c.relname) IN (%s)
 	ORDER BY n.nspname, c.relname`,
-	SchemaFilterClause("n"), utils.SliceToQuotedString(tablenames))
+		SchemaFilterClause("n"), utils.SliceToQuotedString(tablenames))
 
 	results := make([]TupleStatistic, 0)
 	err := connectionPool.Select(&results, query)
