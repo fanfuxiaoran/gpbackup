@@ -193,7 +193,7 @@ SELECT
 FROM pg_depend d
 JOIN pg_type t ON d.refobjid = t.oid
 WHERE d.classid = 'pg_proc'::regclass::oid
-OR d.classid = pg_constraint'::regclass::oid
+OR d.classid = 'pg_constraint'::regclass::oid
 AND typelem != 0`)
 
 	pgDependDeps := make([]struct {
